@@ -49,8 +49,7 @@ MONGODB_URI=mongodb://localhost:27017/helpdesk
 ```
 
 ## How to clone
-git clone https://github.com/your-username/helpdesk-ticket-system.git
-cd helpdesk-ticket-system
+git clone https://github.com/GabrielaCamachoA/HelpDeskPro
 
 ## Install dependencies
 npm install
