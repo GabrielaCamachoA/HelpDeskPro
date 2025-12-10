@@ -1,0 +1,22 @@
+{
+    "register": {
+        "title": "Create an Account",
+        "name": "Fullname",
+        "email": "Email",
+        "password": "Password",
+        "confirmPassword": "Confirm Password",
+        "submit": "Register"
+    },
+    "login": {
+        "title": "Welvome Back!",
+        "email": "Email",
+        "password": "Password",
+        "submit": "Login"
+    },
+    "about": {
+        "title": "About Us"
+    },
+    "home": {
+        "title": "Welcome to our application!"
+    }
+}

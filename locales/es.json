@@ -1,0 +1,22 @@
+{
+    "register": {
+        "title": "Crear cuenta",
+        "name": "Nombre Completo",
+        "email": "Correo electrónico",
+        "password": "Contraseña",
+        "confirmPassword": "Confirmar Contraseña",
+        "submit": "Registrarse"
+    },
+    "login": {
+        "title": "Bienvenido de nuevo!",
+        "email": "Correo electrónico",
+        "password": "Contraseña",
+        "submit": "Iniciar sesión"
+    },
+    "about": {
+        "title": "Sobre nosotros"
+    },
+    "home": {
+        "title": "¡Bienvenido a nuestra aplicación!"
+    }
+}
