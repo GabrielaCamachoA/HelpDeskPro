@@ -46,6 +46,7 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          MONGODB_URL: mongodb://localhost:27017/dummy # Dummy URL for build time
 
   deploy-dev:
     runs-on: ubuntu-latest
