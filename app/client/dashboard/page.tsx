@@ -61,7 +61,7 @@ export default function ClientDashboard() {
         title,
         priority,
         description,
-        userId: user.id,
+        userId: user!._id,
       }),
     });
 

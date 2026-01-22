@@ -10,7 +10,7 @@ import { Dropdown } from "primereact/dropdown";
 import { Message } from "primereact/message";
 
 import api from "@/libs/api";
-import { Ticket, Comment } from "@/libs/types";
+import { Ticket, Comment, User } from "@/libs/types";
 
 export default function TicketDetail() {
   const params = useParams();
@@ -18,7 +18,7 @@ export default function TicketDetail() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<'open' | 'in_progress' | 'closed'>('open');
   const [error, setError] = useState<string | null>(null);
   const { user } = useContext(AuthContext);
   const router = useRouter();
@@ -102,8 +102,8 @@ export default function TicketDetail() {
             <p className="text-gray-300 mb-4">{ticket.description}</p>
             <p className="text-sm text-gray-400">Prioridad: <span className="capitalize">{ticket.priority}</span></p>
             <p className="text-sm text-gray-400">Estado: <span className="capitalize">{ticket.status.replace("_", " ")}</span></p>
-            <p className="text-sm text-gray-400">Creado por: {ticket.userId.fullname}</p>
-            {ticket.assignedTo && <p className="text-sm text-gray-400">Asignado a: {ticket.assignedTo.fullname}</p>}
+            <p className="text-sm text-gray-400">Creado por: {(ticket.userId as User).fullname}</p>
+            {ticket.assignedTo && <p className="text-sm text-gray-400">Asignado a: {(ticket.assignedTo as User).fullname}</p>}
 
             {isAgent && (
               <div className="mt-4">
@@ -125,7 +125,7 @@ export default function TicketDetail() {
             <div className="space-y-4 mb-4">
               {comments.map((c) => (
                 <div key={c._id} className="p-4 bg-white/5 rounded-lg">
-                  <p className="text-sm text-gray-400">{c.userId.fullname} ({c.userId.role})</p>
+                  <p className="text-sm text-gray-400">{(c.userId as User).fullname} ({(c.userId as User).role})</p>
                   <p className="text-white">{c.message}</p>
                   <p className="text-xs text-gray-500">{new Date(c.createdAt).toLocaleString()}</p>
                 </div>

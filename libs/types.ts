@@ -26,3 +26,13 @@ export interface Comment {
   message: string;
   createdAt: string;
 }
+
+export interface Dictionary {
+  login: {
+    title: string;
+    email: string;
+    password: string;
+    submit: string;
+  };
+  // Add other sections as needed
+}
