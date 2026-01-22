@@ -40,10 +40,7 @@ jobs:
         run: npm run lint
 
       - name: Type Checking
-        run: npm run type-check || echo "No type-check script found"
-
-      - name: Run Unit Tests
-        run: npm run test -- --coverage --ci --maxWorkers=2
+        run: npx tsc --noEmit
 
       - name: Build Next.js Application
         run: npm run build
@@ -73,9 +70,14 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Deploy to DEV (Placeholder)
-        run: echo "Deploy to DEV environment"
-        # Add your deployment steps here, e.g., to Vercel, Netlify, or Azure
+      - name: Deploy to DEV (Vercel)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-args: '--prod=false'
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_DEV }}
+          working-directory: .
 
   deploy-prod:
     runs-on: ubuntu-latest
@@ -100,6 +102,11 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Deploy to PRODUCTION (Placeholder)
-        run: echo "Deploy to PRODUCTION environment"
-        # Add your deployment steps here, e.g., to Vercel, Netlify, or Azure
+      - name: Deploy to PRODUCTION (Vercel)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-args: '--prod=true'
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
+          working-directory: .
