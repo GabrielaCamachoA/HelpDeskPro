@@ -1,0 +1,295 @@
+# Azure Pipeline CI/CD para Node.js (Next.js)
+# Proyecto: ef-web
+# Emerald Fire - DevOps Team
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+      - feature/*
+      - bugfix/*
+      - release/*
+      - hotfix/*
+
+# No ejecutar para cambios solo en docs
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - '**/*.md'
+      - 'docs/**'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  nodeVersion: '20.x'
+  npm_config_cache: $(Pipeline.Workspace)/.npm
+
+stages:
+  # ==========================================
+  # STAGE 1: BUILD & TEST
+  # ==========================================
+  - stage: Build
+    displayName: 'Build & Test'
+    jobs:
+      - job: BuildJob
+        displayName: 'Build Application'
+        steps:
+          # Checkout código
+          - checkout: self
+            clean: true
+            fetchDepth: 0
+
+          # Cache de dependencias NPM
+          - task: Cache@2
+            inputs:
+              key: 'npm | "$(Agent.OS)" | package-lock.json'
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+              path: $(npm_config_cache)
+            displayName: 'Cache npm dependencies'
+
+          # Instalar Node.js
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '$(nodeVersion)'
+            displayName: 'Install Node.js $(nodeVersion)'
+
+          # Instalar dependencias
+          - script: |
+              npm ci
+            displayName: 'Install dependencies'
+
+          # Linting
+          - script: |
+              npm run lint
+            displayName: 'Run ESLint'
+            continueOnError: false
+
+          # Type checking (si usa TypeScript)
+          - script: |
+              npm run type-check || echo "No type-check script found"
+            displayName: 'Type Checking'
+            continueOnError: true
+
+          # Unit tests con coverage
+          - script: |
+              npm run test -- --coverage --ci --maxWorkers=2
+            displayName: 'Run Unit Tests'
+            continueOnError: false
+
+          # Publicar resultados de tests
+          - task: PublishTestResults@2
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/junit.xml'
+              mergeTestResults: true
+              failTaskOnFailedTests: true
+              testRunTitle: 'Unit Tests'
+            displayName: 'Publish Test Results'
+
+          # Publicar code coverage
+          - task: PublishCodeCoverageResults@1
+            condition: succeededOrFailed()
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage/cobertura-coverage.xml'
+              reportDirectory: '$(System.DefaultWorkingDirectory)/coverage'
+            displayName: 'Publish Code Coverage'
+
+          # Build de la aplicación
+          - script: |
+              npm run build
+            displayName: 'Build Next.js Application'
+            env:
+              NODE_ENV: production
+
+          # Publicar artefactos de build
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '.next'
+              artifactName: 'nextjs-build'
+              publishLocation: 'Container'
+            displayName: 'Publish Build Artifacts'
+
+          # Publicar artefactos de package.json y package-lock.json
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '$(System.DefaultWorkingDirectory)'
+              artifactName: 'app-source'
+              publishLocation: 'Container'
+            displayName: 'Publish Source Artifacts'
+
+  # ==========================================
+  # STAGE 2: DEPLOY TO DEV
+  # ==========================================
+  - stage: DeployDev
+    displayName: 'Deploy to DEV'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    jobs:
+      - deployment: DeployDevJob
+        displayName: 'Deploy to Development Environment'
+        environment: 'Development'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Descargar artefactos
+                - download: current
+                  artifact: 'nextjs-build'
+                  displayName: 'Download Build Artifacts'
+
+                # Deploy a Azure App Service (ejemplo)
+                - task: AzureWebApp@1
+                  inputs:
+                    azureSubscription: 'azure-dev'
+                    appType: 'webAppLinux'
+                    appName: 'app-ef-web-dev'
+                    package: '$(Pipeline.Workspace)/nextjs-build'
+                    runtimeStack: 'NODE|20-lts'
+                    startUpCommand: 'npm start'
+                  displayName: 'Deploy to Azure App Service DEV'
+
+                # Smoke test
+                - script: |
+                    echo "Running smoke tests on DEV..."
+                    curl -f https://app-ef-web-dev.azurewebsites.net/api/health || exit 1
+                  displayName: 'Smoke Test DEV'
+
+  # ==========================================
+  # STAGE 3: DEPLOY TO QA
+  # ==========================================
+  - stage: DeployQA
+    displayName: 'Deploy to QA'
+    dependsOn: Build
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))
+    jobs:
+      - deployment: DeployQAJob
+        displayName: 'Deploy to QA Environment'
+        environment: 'QA'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Descargar artefactos
+                - download: current
+                  artifact: 'nextjs-build'
+                  displayName: 'Download Build Artifacts'
+
+                # Deploy a Azure App Service QA
+                - task: AzureWebApp@1
+                  inputs:
+                    azureSubscription: 'azure-qa'
+                    appType: 'webAppLinux'
+                    appName: 'app-ef-web-qa'
+                    package: '$(Pipeline.Workspace)/nextjs-build'
+                    runtimeStack: 'NODE|20-lts'
+                    startUpCommand: 'npm start'
+                  displayName: 'Deploy to Azure App Service QA'
+
+                # Smoke test
+                - script: |
+                    echo "Running smoke tests on QA..."
+                    curl -f https://app-ef-web-qa.azurewebsites.net/api/health || exit 1
+                  displayName: 'Smoke Test QA'
+
+                # Notificar a QA Team
+                - script: |
+                    echo "Notifying QA team..."
+                    # Aquí puedes agregar notificación a Teams/Slack
+                  displayName: 'Notify QA Team'
+
+  # ==========================================
+  # STAGE 4: DEPLOY TO PRODUCTION
+  # ==========================================
+  - stage: DeployProd
+    displayName: 'Deploy to PRODUCTION'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployProdJob
+        displayName: 'Deploy to Production Environment'
+        environment: 'Production'  # ← Approval Gate se activa aquí
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Descargar artefactos
+                - download: current
+                  artifact: 'nextjs-build'
+                  displayName: 'Download Build Artifacts'
+
+                # Deploy a Azure App Service PROD
+                - task: AzureWebApp@1
+                  inputs:
+                    azureSubscription: 'azure-prod'
+                    appType: 'webAppLinux'
+                    appName: 'app-ef-web-prod'
+                    package: '$(Pipeline.Workspace)/nextjs-build'
+                    runtimeStack: 'NODE|20-lts'
+                    startUpCommand: 'npm start'
+                  displayName: 'Deploy to Azure App Service PROD'
+
+                # Smoke test PROD
+                - script: |
+                    echo "Running smoke tests on PRODUCTION..."
+                    curl -f https://app-ef-web-prod.azurewebsites.net/api/health || exit 1
+                  displayName: 'Smoke Test PRODUCTION'
+
+                # Crear Git Tag
+                - script: |
+                    git config user.email "devops@emeraldfire.com"
+                    git config user.name "Azure DevOps"
+                    VERSION=$(node -p "require('./package.json').version")
+                    git tag -a "v$VERSION" -m "Release v$VERSION"
+                    git push origin "v$VERSION"
+                  displayName: 'Create Git Tag'
+
+                # Notificar éxito
+                - script: |
+                    echo "✅ Deployment to PRODUCTION successful!"
+                    echo "Version: $(node -p "require('./package.json').version")"
+                    echo "Deployed at: $(date)"
+                    # Aquí puedes agregar notificación a Teams/Slack
+                  displayName: 'Notify Success'
+
+# ==========================================
+# NOTAS DE CONFIGURACIÓN
+# ==========================================
+# 
+# 1. Service Connections requeridas:
+#    - azure-dev: Connection a Azure para DEV
+#    - azure-qa: Connection a Azure para QA
+#    - azure-prod: Connection a Azure para PROD
+#
+# 2. Environments en Azure DevOps:
+#    - Development: Sin approval
+#    - QA: Sin approval
+#    - Production: Con approval gate (DevOps + QA Lead)
+#
+# 3. Variables requeridas:
+#    - En cada environment, configura:
+#      * DATABASE_URL
+#      * API_KEYS
+#      * etc. (usar Variable Groups linkados a Key Vault)
+#
+# 4. Scripts necesarios en package.json:
+#    - lint: ESLint
+#    - type-check: TypeScript checking
+#    - test: Jest con coverage
+#    - build: Next.js build
+#    - start: Next.js start
+#
+# 5. Para activar este pipeline:
+#    - Copia este archivo a la raíz del repo como: azure-pipelines.yml
+#    - Ve a Pipelines → New Pipeline → Existing YAML file
+#    - Selecciona este archivo
+#
+# Co-Authored-By: Warp <agent@warp.dev>
