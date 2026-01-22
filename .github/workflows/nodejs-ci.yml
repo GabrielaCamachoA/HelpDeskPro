@@ -1,295 +1,105 @@
-# Azure Pipeline CI/CD para Node.js (Next.js)
-# Proyecto: ef-web
-# Emerald Fire - DevOps Team
+name: Node.js CI
 
-trigger:
-  branches:
-    include:
+on:
+  push:
+    branches:
       - main
       - develop
-      - feature/*
-      - bugfix/*
-      - release/*
-      - hotfix/*
-
-# No ejecutar para cambios solo en docs
-pr:
-  branches:
-    include:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'release/**'
+      - 'hotfix/**'
+  pull_request:
+    branches:
       - main
       - develop
-  paths:
-    exclude:
+    paths-ignore:
       - '**/*.md'
       - 'docs/**'
 
-pool:
-  vmImage: 'ubuntu-latest'
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
 
-variables:
-  nodeVersion: '20.x'
-  npm_config_cache: $(Pipeline.Workspace)/.npm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-stages:
-  # ==========================================
-  # STAGE 1: BUILD & TEST
-  # ==========================================
-  - stage: Build
-    displayName: 'Build & Test'
-    jobs:
-      - job: BuildJob
-        displayName: 'Build Application'
-        steps:
-          # Checkout código
-          - checkout: self
-            clean: true
-            fetchDepth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-          # Cache de dependencias NPM
-          - task: Cache@2
-            inputs:
-              key: 'npm | "$(Agent.OS)" | package-lock.json'
-              restoreKeys: |
-                npm | "$(Agent.OS)"
-              path: $(npm_config_cache)
-            displayName: 'Cache npm dependencies'
+      - name: Install dependencies
+        run: npm ci
 
-          # Instalar Node.js
-          - task: NodeTool@0
-            inputs:
-              versionSpec: '$(nodeVersion)'
-            displayName: 'Install Node.js $(nodeVersion)'
+      - name: Run ESLint
+        run: npm run lint
 
-          # Instalar dependencias
-          - script: |
-              npm ci
-            displayName: 'Install dependencies'
+      - name: Type Checking
+        run: npm run type-check || echo "No type-check script found"
 
-          # Linting
-          - script: |
-              npm run lint
-            displayName: 'Run ESLint'
-            continueOnError: false
+      - name: Run Unit Tests
+        run: npm run test -- --coverage --ci --maxWorkers=2
 
-          # Type checking (si usa TypeScript)
-          - script: |
-              npm run type-check || echo "No type-check script found"
-            displayName: 'Type Checking'
-            continueOnError: true
+      - name: Build Next.js Application
+        run: npm run build
+        env:
+          NODE_ENV: production
 
-          # Unit tests con coverage
-          - script: |
-              npm run test -- --coverage --ci --maxWorkers=2
-            displayName: 'Run Unit Tests'
-            continueOnError: false
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
 
-          # Publicar resultados de tests
-          - task: PublishTestResults@2
-            condition: succeededOrFailed()
-            inputs:
-              testResultsFormat: 'JUnit'
-              testResultsFiles: '**/junit.xml'
-              mergeTestResults: true
-              failTaskOnFailedTests: true
-              testRunTitle: 'Unit Tests'
-            displayName: 'Publish Test Results'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-          # Publicar code coverage
-          - task: PublishCodeCoverageResults@1
-            condition: succeededOrFailed()
-            inputs:
-              codeCoverageTool: 'Cobertura'
-              summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage/cobertura-coverage.xml'
-              reportDirectory: '$(System.DefaultWorkingDirectory)/coverage'
-            displayName: 'Publish Code Coverage'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-          # Build de la aplicación
-          - script: |
-              npm run build
-            displayName: 'Build Next.js Application'
-            env:
-              NODE_ENV: production
+      - name: Install dependencies
+        run: npm ci
 
-          # Publicar artefactos de build
-          - task: PublishBuildArtifacts@1
-            inputs:
-              pathToPublish: '.next'
-              artifactName: 'nextjs-build'
-              publishLocation: 'Container'
-            displayName: 'Publish Build Artifacts'
+      - name: Build for production
+        run: npm run build
+        env:
+          NODE_ENV: production
 
-          # Publicar artefactos de package.json y package-lock.json
-          - task: PublishBuildArtifacts@1
-            inputs:
-              pathToPublish: '$(System.DefaultWorkingDirectory)'
-              artifactName: 'app-source'
-              publishLocation: 'Container'
-            displayName: 'Publish Source Artifacts'
+      - name: Deploy to DEV (Placeholder)
+        run: echo "Deploy to DEV environment"
+        # Add your deployment steps here, e.g., to Vercel, Netlify, or Azure
 
-  # ==========================================
-  # STAGE 2: DEPLOY TO DEV
-  # ==========================================
-  - stage: DeployDev
-    displayName: 'Deploy to DEV'
-    dependsOn: Build
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-    jobs:
-      - deployment: DeployDevJob
-        displayName: 'Deploy to Development Environment'
-        environment: 'Development'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                # Descargar artefactos
-                - download: current
-                  artifact: 'nextjs-build'
-                  displayName: 'Download Build Artifacts'
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-                # Deploy a Azure App Service (ejemplo)
-                - task: AzureWebApp@1
-                  inputs:
-                    azureSubscription: 'azure-dev'
-                    appType: 'webAppLinux'
-                    appName: 'app-ef-web-dev'
-                    package: '$(Pipeline.Workspace)/nextjs-build'
-                    runtimeStack: 'NODE|20-lts'
-                    startUpCommand: 'npm start'
-                  displayName: 'Deploy to Azure App Service DEV'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-                # Smoke test
-                - script: |
-                    echo "Running smoke tests on DEV..."
-                    curl -f https://app-ef-web-dev.azurewebsites.net/api/health || exit 1
-                  displayName: 'Smoke Test DEV'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-  # ==========================================
-  # STAGE 3: DEPLOY TO QA
-  # ==========================================
-  - stage: DeployQA
-    displayName: 'Deploy to QA'
-    dependsOn: Build
-    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))
-    jobs:
-      - deployment: DeployQAJob
-        displayName: 'Deploy to QA Environment'
-        environment: 'QA'
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                # Descargar artefactos
-                - download: current
-                  artifact: 'nextjs-build'
-                  displayName: 'Download Build Artifacts'
+      - name: Install dependencies
+        run: npm ci
 
-                # Deploy a Azure App Service QA
-                - task: AzureWebApp@1
-                  inputs:
-                    azureSubscription: 'azure-qa'
-                    appType: 'webAppLinux'
-                    appName: 'app-ef-web-qa'
-                    package: '$(Pipeline.Workspace)/nextjs-build'
-                    runtimeStack: 'NODE|20-lts'
-                    startUpCommand: 'npm start'
-                  displayName: 'Deploy to Azure App Service QA'
+      - name: Build for production
+        run: npm run build
+        env:
+          NODE_ENV: production
 
-                # Smoke test
-                - script: |
-                    echo "Running smoke tests on QA..."
-                    curl -f https://app-ef-web-qa.azurewebsites.net/api/health || exit 1
-                  displayName: 'Smoke Test QA'
-
-                # Notificar a QA Team
-                - script: |
-                    echo "Notifying QA team..."
-                    # Aquí puedes agregar notificación a Teams/Slack
-                  displayName: 'Notify QA Team'
-
-  # ==========================================
-  # STAGE 4: DEPLOY TO PRODUCTION
-  # ==========================================
-  - stage: DeployProd
-    displayName: 'Deploy to PRODUCTION'
-    dependsOn: Build
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    jobs:
-      - deployment: DeployProdJob
-        displayName: 'Deploy to Production Environment'
-        environment: 'Production'  # ← Approval Gate se activa aquí
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                # Descargar artefactos
-                - download: current
-                  artifact: 'nextjs-build'
-                  displayName: 'Download Build Artifacts'
-
-                # Deploy a Azure App Service PROD
-                - task: AzureWebApp@1
-                  inputs:
-                    azureSubscription: 'azure-prod'
-                    appType: 'webAppLinux'
-                    appName: 'app-ef-web-prod'
-                    package: '$(Pipeline.Workspace)/nextjs-build'
-                    runtimeStack: 'NODE|20-lts'
-                    startUpCommand: 'npm start'
-                  displayName: 'Deploy to Azure App Service PROD'
-
-                # Smoke test PROD
-                - script: |
-                    echo "Running smoke tests on PRODUCTION..."
-                    curl -f https://app-ef-web-prod.azurewebsites.net/api/health || exit 1
-                  displayName: 'Smoke Test PRODUCTION'
-
-                # Crear Git Tag
-                - script: |
-                    git config user.email "devops@emeraldfire.com"
-                    git config user.name "Azure DevOps"
-                    VERSION=$(node -p "require('./package.json').version")
-                    git tag -a "v$VERSION" -m "Release v$VERSION"
-                    git push origin "v$VERSION"
-                  displayName: 'Create Git Tag'
-
-                # Notificar éxito
-                - script: |
-                    echo "✅ Deployment to PRODUCTION successful!"
-                    echo "Version: $(node -p "require('./package.json').version")"
-                    echo "Deployed at: $(date)"
-                    # Aquí puedes agregar notificación a Teams/Slack
-                  displayName: 'Notify Success'
-
-# ==========================================
-# NOTAS DE CONFIGURACIÓN
-# ==========================================
-# 
-# 1. Service Connections requeridas:
-#    - azure-dev: Connection a Azure para DEV
-#    - azure-qa: Connection a Azure para QA
-#    - azure-prod: Connection a Azure para PROD
-#
-# 2. Environments en Azure DevOps:
-#    - Development: Sin approval
-#    - QA: Sin approval
-#    - Production: Con approval gate (DevOps + QA Lead)
-#
-# 3. Variables requeridas:
-#    - En cada environment, configura:
-#      * DATABASE_URL
-#      * API_KEYS
-#      * etc. (usar Variable Groups linkados a Key Vault)
-#
-# 4. Scripts necesarios en package.json:
-#    - lint: ESLint
-#    - type-check: TypeScript checking
-#    - test: Jest con coverage
-#    - build: Next.js build
-#    - start: Next.js start
-#
-# 5. Para activar este pipeline:
-#    - Copia este archivo a la raíz del repo como: azure-pipelines.yml
-#    - Ve a Pipelines → New Pipeline → Existing YAML file
-#    - Selecciona este archivo
-#
-# Co-Authored-By: Warp <agent@warp.dev>
+      - name: Deploy to PRODUCTION (Placeholder)
+        run: echo "Deploy to PRODUCTION environment"
+        # Add your deployment steps here, e.g., to Vercel, Netlify, or Azure
