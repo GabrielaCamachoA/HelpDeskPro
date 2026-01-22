@@ -9,9 +9,10 @@ import { InputTextarea } from "primereact/inputtextarea";
 import { Button } from "primereact/button";
 import { Message } from "primereact/message";
 import api from "@/libs/api";
+import { Ticket } from "@/libs/types";
 
 export default function ClientDashboard() {
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [title, setTitle] = useState("");
@@ -21,22 +22,23 @@ export default function ClientDashboard() {
 
   const { user } = useContext(AuthContext);
 
-  useEffect(() => {
-    if (!user) return;
-
-    fetchTickets();
-  }, [user]);
-
   const fetchTickets = async () => {
     try {
       const res = await api.get("/tickets");
       setTickets(res.data);
       setLoading(false);
-    } catch (err) {
+    } catch {
       setError("Error cargando tickets");
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!user) return;
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchTickets();
+  }, [user]);
 
   const priorities = [
     { label: "Baja", value: "low" },

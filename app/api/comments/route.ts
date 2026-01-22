@@ -25,10 +25,10 @@ export async function POST(req: Request) {
   }
 
   const token = authHeader.split(" ")[1];
-  let decoded: any;
+  let decoded: { id: string };
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET!);
-  } catch (err) {
+    decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
+  } catch {
     return NextResponse.json({ message: "Invalid token" }, { status: 401 });
   }
 

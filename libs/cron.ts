@@ -1,6 +1,7 @@
 import Ticket from "@/models/ticket";
 import { connectDB } from "./mongodb";
 import { sendMail } from "./emails";
+import { User } from "./types";
 
 
 
@@ -11,19 +12,19 @@ export async function checkAndNotifyUnanswered() {
   const tickets = await Ticket.find({
     status: "open",
     createdAt: { $lte: twoDaysAgo }
-  }).populate("assignedTo createdBy", "email fullname");
+  }).populate("userId assignedTo", "email fullname");
 
   for (const t of tickets) {
-    if (t.assignedTo && (t as any).assignedTo.email) {
+    if (t.assignedTo && (t.assignedTo as User).email) {
       await sendMail(
-        (t as any).assignedTo.email,
+        (t.assignedTo as User).email,
         `Recordatorio: ticket pendiente - ${t.title}`,
         `<p>El ticket "<b>${t.title}</b>" está abierto desde ${t.createdAt.toISOString()}</p>`
       );
-    } else if ((t as any).createdBy && (t as any).createdBy.email) {
+    } else if (t.userId && (t.userId as User).email) {
       // si no está asignado, podríamos notificar al creador (opcional)
       await sendMail(
-        (t as any).createdBy.email,
+        (t.userId as User).email,
         `Su ticket sigue pendiente - ${t.title}`,
         `<p>Su ticket "<b>${t.title}</b>" sigue sin respuesta. Estamos trabajando en ello.</p>`
       );

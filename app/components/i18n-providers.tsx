@@ -3,15 +3,20 @@
 import { getDictionary } from "@/i18n";
 import { createContext, useState, useContext, useEffect } from "react";
 
+interface I18nContextType {
+  lang: string;
+  setLang: (lang: string) => void;
+  dict: Record<string, unknown>;
+}
 
-const I18nContext = createContext<any>(null);
+const I18nContext = createContext<I18nContextType | null>(null);
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLang] = useState("es");
-  const [dict, setDict] = useState<any>({});
+  const [dict, setDict] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
-    getDictionary(lang as any).then(setDict);
+    getDictionary(lang).then(setDict);
   }, [lang]);
 
   return (

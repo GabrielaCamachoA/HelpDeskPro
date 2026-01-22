@@ -12,7 +12,7 @@ import { AuthContext } from "@/app/components/Providers";
 import api from "@/libs/api";
 
 function LoginPage() {
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, formState: { errors } } = useForm();
   const { dict } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -37,8 +37,9 @@ function LoginPage() {
       if (res.data.user.role === "agent") router.push("/agent/dashboard");
       else router.push("/client/dashboard");
 
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Error al iniciar sesión");
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      setError(error.response?.data?.message || "Error al iniciar sesión");
     }
   };
 

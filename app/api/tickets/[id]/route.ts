@@ -2,6 +2,7 @@ import { sendMail } from "@/libs/emails";
 import { connectDB } from "@/libs/mongodb";
 import Ticket from "@/models/ticket";
 import { NextResponse } from "next/server";
+import { User } from "@/libs/types";
 
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,11 +21,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!ticket) return NextResponse.json({ message: "No encontrado" }, { status: 404 });
 
   // notificaciones importantes
-  if (updates.assignedTo && ticket.assignedTo && (ticket.assignedTo as any).email) {
-    await sendMail((ticket.assignedTo as any).email, `Se te asignó el ticket: ${ticket.title}`, `<p>Se te asignó el ticket <b>${ticket.title}</b>.</p>`);
+  if (updates.assignedTo && ticket.assignedTo && (ticket.assignedTo as User).email) {
+    await sendMail((ticket.assignedTo as User).email, `Se te asignó el ticket: ${ticket.title}`, `<p>Se te asignó el ticket <b>${ticket.title}</b>.</p>`);
   }
-  if (updates.status === "closed" && (ticket.userId as any).email) {
-    await sendMail((ticket.userId as any).email, `Ticket cerrado: ${ticket.title}`, `<p>Tu ticket <b>${ticket.title}</b> ha sido cerrado.</p>`);
+  if (updates.status === "closed" && (ticket.userId as User).email) {
+    await sendMail((ticket.userId as User).email, `Ticket cerrado: ${ticket.title}`, `<p>Tu ticket <b>${ticket.title}</b> ha sido cerrado.</p>`);
   }
 
   return NextResponse.json(ticket);

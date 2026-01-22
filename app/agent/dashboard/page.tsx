@@ -8,16 +8,27 @@ import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import api from "@/libs/api";
+import { Ticket } from "@/libs/types";
 
 export default function AgentDashboard() {
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [filteredTickets, setFilteredTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [priorityFilter, setPriorityFilter] = useState<string>("");
   const [search, setSearch] = useState<string>("");
   const router = useRouter();
 
+  const fetchTickets = async () => {
+    try {
+      const res = await api.get("/tickets");
+      setTickets(res.data);
+    } catch {
+      console.error("Error fetching tickets");
+    }
+  };
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTickets();
   }, []);
 
@@ -26,17 +37,9 @@ export default function AgentDashboard() {
     if (statusFilter) filtered = filtered.filter(t => t.status === statusFilter);
     if (priorityFilter) filtered = filtered.filter(t => t.priority === priorityFilter);
     if (search) filtered = filtered.filter(t => t.title.toLowerCase().includes(search.toLowerCase()) || t.description.toLowerCase().includes(search.toLowerCase()));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFilteredTickets(filtered);
   }, [tickets, statusFilter, priorityFilter, search]);
-
-  const fetchTickets = async () => {
-    try {
-      const res = await api.get("/tickets");
-      setTickets(res.data);
-    } catch (err) {
-      console.error("Error fetching tickets");
-    }
-  };
 
   const statusOptions = [
     { label: "Todos", value: "" },
@@ -52,8 +55,8 @@ export default function AgentDashboard() {
     { label: "Alta", value: "high" },
   ];
 
-  const statusBodyTemplate = (rowData: any) => {
-    const statusMap: any = {
+  const statusBodyTemplate = (rowData: Ticket) => {
+    const statusMap: Record<string, string> = {
       open: "Abierto",
       in_progress: "En Progreso",
       closed: "Cerrado"
@@ -61,8 +64,8 @@ export default function AgentDashboard() {
     return <span className="capitalize">{statusMap[rowData.status] || rowData.status}</span>;
   };
 
-  const priorityBodyTemplate = (rowData: any) => {
-    const priorityMap: any = {
+  const priorityBodyTemplate = (rowData: Ticket) => {
+    const priorityMap: Record<string, string> = {
       low: "Baja",
       medium: "Media",
       high: "Alta"
@@ -70,7 +73,7 @@ export default function AgentDashboard() {
     return <span className="capitalize">{priorityMap[rowData.priority] || rowData.priority}</span>;
   };
 
-  const actionBodyTemplate = (rowData: any) => {
+  const actionBodyTemplate = (rowData: Ticket) => {
     return (
       <Button
         label="Ver Detalles"

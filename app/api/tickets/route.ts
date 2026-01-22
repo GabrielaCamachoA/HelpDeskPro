@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newTicket, { status: 201 });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Error creating ticket:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
@@ -34,10 +34,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
   const token = authHeader.split(" ")[1];
-  let decoded: any;
+  let decoded: { id: string; role: string };
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET!);
-  } catch (err) {
+    decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string; role: string };
+  } catch {
     return NextResponse.json({ message: "Invalid token" }, { status: 401 });
   }
   const userId = decoded.id;
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
   const status = searchParams.get("status");
   const priority = searchParams.get("priority");
 
-  let filter: any = {};
+  const filter: Record<string, unknown> = {};
   if (userRole === "client") {
     filter.userId = userId;
   }

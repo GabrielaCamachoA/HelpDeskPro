@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AuthContext } from "@/app/components/Providers";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
@@ -10,42 +10,45 @@ import { Dropdown } from "primereact/dropdown";
 import { Message } from "primereact/message";
 
 import api from "@/libs/api";
+import { Ticket, Comment } from "@/libs/types";
 
 export default function TicketDetail() {
   const params = useParams();
   const id = params.id as string;
-  const [ticket, setTicket] = useState<any>(null);
-  const [comments, setComments] = useState<any[]>([]);
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { user } = useContext(AuthContext);
   const router = useRouter();
 
-  useEffect(() => {
-    if (!user) return;
-    fetchTicket();
-    fetchComments();
-  }, [id, user]);
-
-  const fetchTicket = async () => {
+  const fetchTicket = useCallback(async () => {
     try {
       const res = await api.get(`/tickets/${id}`);
       setTicket(res.data);
       setStatus(res.data.status);
-    } catch (err) {
+    } catch {
       setError("Error cargando ticket");
     }
-  };
+  }, [id]);
 
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     try {
       const res = await api.get(`/comments?ticketId=${id}`);
       setComments(res.data);
-    } catch (err) {
+    } catch {
       setError("Error cargando comentarios");
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchTicket();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchComments();
+  }, [id, user, fetchTicket, fetchComments]);
 
   const sendComment = async () => {
   if (!text.trim()) return;
@@ -59,8 +62,7 @@ export default function TicketDetail() {
     setText("");
     await fetchComments();
     setError(null);
-  } catch (err) {
-    console.log(err);
+  } catch {
     setError("Error enviando comentario");
   }
 };
@@ -70,8 +72,8 @@ export default function TicketDetail() {
   const changeStatus = async () => {
     try {
       await api.patch(`/tickets/${id}`, { status });
-      setTicket({ ...ticket, status });
-    } catch (err) {
+      if (ticket) setTicket({ ...ticket, status });
+    } catch {
       setError("Error cambiando estado");
     }
   };
@@ -85,7 +87,6 @@ export default function TicketDetail() {
   if (!ticket) return <div className="flex justify-center items-center h-screen"><p>Cargando...</p></div>;
 
   const isAgent = user?.role === "agent";
-  const isOwner = ticket.userId._id === user?.id;
 
   return (
     <ProtectedRoute requiredRole={isAgent ? "agent" : "client"}>

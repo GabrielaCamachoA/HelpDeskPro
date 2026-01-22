@@ -2,12 +2,19 @@
 
 import { setAPIToken } from "@/libs/api";
 import { createContext, useState, useEffect } from "react";
+import { User } from "@/libs/types";
 
+interface AuthContextType {
+  user: User | null;
+  login: (userData: User, token: string) => void;
+  logout: () => void;
+  loading: boolean;
+}
 
-export const AuthContext = createContext<any>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Cargar datos de sesión al iniciar
@@ -16,6 +23,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     const storedToken = localStorage.getItem("token");
 
     if (storedUser && storedToken) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUser(JSON.parse(storedUser));
       setAPIToken(storedToken);
     }
@@ -23,7 +31,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = (userData: any, token: string) => {
+  const login = (userData: User, token: string) => {
     localStorage.setItem("user", JSON.stringify(userData));
     localStorage.setItem("token", token);
     setAPIToken(token);
